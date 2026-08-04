@@ -21,6 +21,8 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
     bfColumnTimeOut,
     bfCond1TimeOut,
     isFilterReload = {},
+    dropListFormBound = {}, // 记录每个表格的 form.on(checkbox(soulDropList...)) 是否已经注册过，避免重复绑定导致叠加触发
+    dropListReloadLock = {}, // 兜底重入锁：防止同一轮同步调用栈内 updateDropList 被反复触发导致雪崩式 reload
     SOUL_ROW_INDEX = 'SOUL_ROW_INDEX',
     cache = {},
     HIDE = 'layui-hide',
@@ -122,6 +124,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       }
     },
     render: function (myTable) {
+      try { console.time('[filter] render ' + myTable.id); console.log('[filter] render START id=' + myTable.id + ' cols=' + (myTable.cols ? myTable.cols[0].length : '?') + ' data=' + (table_cache[myTable.id] ? (table_cache[myTable.id].length || '0') : '?')); } catch(e){}
       var _this = this,
         $table = $(myTable.elem),
         $tableMain = $table.next().children('.layui-table-box').children('.layui-table-main'),
@@ -340,9 +343,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
 
 
         // 显示隐藏列
-        var liClick = true;
         form.on('checkbox(changeColumns' + tableId + ')', function (data) {
-          liClick = false;
           var columnkey = data.value
           if (data.elem.checked) {
             $table.next().find('[data-key=' + columnkey + ']').removeClass(HIDE);
@@ -363,12 +364,27 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
           $table.next().children('.layui-table-box').children('.layui-table-body').children('table').children('tbody').children('tr.childTr').children('td').attr('colspan', $table.next().children('.layui-table-box').children('.layui-table-header').find('thead>tr>th:visible').length)
           table.resize(tableId)
         });
-        $('#soul-columns' + tableId + '>li[data-value]').on('click', function () {
-          if (!$(this).find(':checkbox').is(':disabled')) { //disabled禁止点击
-            if (liClick) {
-              $(this).find('div.layui-form-checkbox').trigger('click');
+        $('#soul-columns' + tableId).off('click', 'li[data-value]').on('click', 'li[data-value]', function (e) {
+          // 直接触发 layui skin div 的 click，走原生链路：勾选切换 → 皮肤更新 → form.on 处理列显隐
+          // 排除 skin div 和 input 本身的点击，防止递归
+          if (!$(this).find(':checkbox').is(':disabled') && $(e.target).closest('div.layui-form-checkbox, input[type=checkbox]').length === 0) {
+            var $skin = $(this).find('div.layui-form-checkbox');
+            if ($skin.length) {
+              $skin.trigger('click');
             }
-            liClick = true;
+            // form.on 回调已处理 DOM 列显隐/colspan/resize，这里只需同步 table.cols 数据模型
+            var $checkbox = $(this).find('input[type=checkbox]');
+            var columnkey = $checkbox.val();
+            for (i = 0; i < myTable.cols.length; i++) {
+              for (j = 0; j < myTable.cols[i].length; j++) {
+                if (myTable.cols[i][j].key === columnkey) {
+                  myTable.cols[i][j]['hide'] = !$checkbox.prop('checked');
+                }
+              }
+            }
+            if (layui.soulTable) {
+              layui.soulTable.fixTableRemember(myTable)
+            }
           }
         });
 
@@ -482,18 +498,25 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
             form.render('checkbox', 'orm');
           }, 1);
 
-          // 监听筛选数据
-          var liClick = true;
-          form.on('checkbox(soulDropList' + tableId + ')', function (data) {
-            liClick = false;
-            _this.updateDropList(myTable, field);
-          });
+          // 监听筛选数据（修复：form.on 只注册一次，避免每次 hover 叠加监听导致点击时重复触发 soulReload/table.reload ）
+          if (!dropListFormBound[tableId]) {
+            dropListFormBound[tableId] = {field: field};
+            form.on('checkbox(soulDropList' + tableId + ')', function (data) {
+              _this.updateDropList(myTable, dropListFormBound[tableId].field);
+            });
+          } else {
+            dropListFormBound[tableId].field = field;
+          }
 
-          $('#soul-dropList' + tableId + '>ul>li[data-value]').on('click', function () {
-            if (liClick) {
-              $(this).find('div.layui-form-checkbox').trigger('click');
+          $('#soul-dropList' + tableId).off('click', 'li[data-value]').on('click', 'li[data-value]', function (e) {
+            // 直接触发 layui skin div 的 click，走原生链路：勾选切换 → 皮肤更新 → form.on → updateDropList
+            // 排除 skin div 和 input 本身的点击，防止递归
+            if ($(e.target).closest('div.layui-form-checkbox, input[type=checkbox]').length === 0) {
+              var $skin = $(this).find('div.layui-form-checkbox');
+              if ($skin.length) {
+                $skin.trigger('click');
+              }
             }
-            liClick = true;
           })
         });
 
@@ -993,6 +1016,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       }
 
       this.bindFilterClick(myTable);
+      try { console.timeEnd('[filter] render ' + myTable.id); } catch(e){}
     },
     showConditionBoard: function (myTable) {
       var _this = this,
@@ -1252,18 +1276,25 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
               $('#soul-dropList' + tableId + '>.filter-search>input').focus() // 聚焦搜索框
             }, 1);
 
-            // 监听筛选数据
-            var liClick = true;
-            form.on('checkbox(soulDropList' + tableId + ')', function (data) {
-              liClick = false;
-              _this.updateDropList(myTable, field);
-            });
+            // 监听筛选数据（修复：与其他入口共用同一个绑定状态，避免重复注册 form.on）
+            if (!dropListFormBound[tableId]) {
+              dropListFormBound[tableId] = {field: field};
+              form.on('checkbox(soulDropList' + tableId + ')', function (data) {
+                _this.updateDropList(myTable, dropListFormBound[tableId].field);
+              });
+            } else {
+              dropListFormBound[tableId].field = field;
+            }
 
-            $('#soul-dropList' + tableId + '>ul>li[data-value]').on('click', function () {
-              if (liClick) {
-                $(this).find('div.layui-form-checkbox').trigger('click');
+            $('#soul-dropList' + tableId).off('click', 'li[data-value]').on('click', 'li[data-value]', function (e) {
+              // 直接触发 layui skin div 的 click，走原生链路：勾选切换 → 皮肤更新 → form.on → updateDropList
+              // 排除 skin div 和 input 本身的点击，防止递归
+              if ($(e.target).closest('div.layui-form-checkbox, input[type=checkbox]').length === 0) {
+                var $skin = $(this).find('div.layui-form-checkbox');
+                if ($skin.length) {
+                  $skin.trigger('click');
+                }
               }
-              liClick = true;
             })
             break;
           case 'date':
@@ -1656,6 +1687,15 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
      * @param field
      */
     , updateDropList: function (myTable, field) {
+      // 兜底重入锁：不管是谁在同一轮同步调用栈里重复触发这个入口（无论是事件冒泡、
+      // layui 内部重新广播，还是别的原因），同一张表只允许真正执行一次，
+      // 其余重复调用直接跳过，避免雪崩式反复 reload 卡死浏览器。
+      if (dropListReloadLock[myTable.id]) {
+        return;
+      }
+      dropListReloadLock[myTable.id] = true;
+      setTimeout(function () { dropListReloadLock[myTable.id] = false; }, 0);
+      try { console.time("[filter] updateDropList "+field); console.log("[filter] updateDropList START field="+field+" rows="+(cache[myTable.id]?cache[myTable.id].length:"?")); } catch(e){}
       var _this = this,
         $table = $(myTable.elem),
         tableId = myTable.id,
@@ -1692,6 +1732,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       if (refresh) {
         _this.soulReload(myTable);
       }
+      try { console.timeEnd("[filter] updateDropList "+field); } catch(e){}
     }
     , getFilterSoById: function (filterSos, id) {
       for (var i = 0; i < filterSos.length; i++) {
@@ -1770,6 +1811,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
      * @param isr 是否为筛选重载，为 true 时，不进行筛选的初始化动作（包括渲染dom、请求表头数据等）
      */
     , soulReload: function (myTable, isr) {
+      try { console.time("[filter] soulReload"); console.log("[filter] soulReload START"); } catch(e){}
       var _this = this,
         $table = $(myTable.elem),
         scrollLeft = $table.next().children('.layui-table-box').children('.layui-table-main').scrollLeft();
@@ -2378,18 +2420,25 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
             }, 1);
 
 
-            // 监听筛选数据
-            var liClick = true;
-            form.on('checkbox(soulDropList' + tableId + ')', function (data) {
-              liClick = false;
-              _this.updateDropList(myTable, field);
-            });
+            // 监听筛选数据（修复：与其他入口共用同一个绑定状态，避免重复注册 form.on）
+            if (!dropListFormBound[tableId]) {
+              dropListFormBound[tableId] = {field: field};
+              form.on('checkbox(soulDropList' + tableId + ')', function (data) {
+                _this.updateDropList(myTable, dropListFormBound[tableId].field);
+              });
+            } else {
+              dropListFormBound[tableId].field = field;
+            }
 
-            $('#soul-dropList' + tableId + '>ul>li[data-value]').on('click', function () {
-              if (liClick) {
-                $(this).find('div.layui-form-checkbox').trigger('click');
+            $('#soul-dropList' + tableId).off('click', 'li[data-value]').on('click', 'li[data-value]', function (e) {
+              // 直接触发 layui skin div 的 click，走原生链路：勾选切换 → 皮肤更新 → form.on → updateDropList
+              // 排除 skin div 和 input 本身的点击，防止递归
+              if ($(e.target).closest('div.layui-form-checkbox, input[type=checkbox]').length === 0) {
+                var $skin = $(this).find('div.layui-form-checkbox');
+                if ($skin.length) {
+                  $skin.trigger('click');
+                }
               }
-              liClick = true;
             })
             break;
           case 'date':
