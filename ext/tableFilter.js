@@ -4,7 +4,7 @@
  * @author: yelog
  * @link: https://github.com/yelog/layui-soul-table
  * @license: MIT
- * @version: v1.9.1
+ * @version: v1.9.2
  */
 layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (exports) {
 
@@ -124,7 +124,6 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       }
     },
     render: function (myTable) {
-      try { console.time('[filter] render ' + myTable.id); console.log('[filter] render START id=' + myTable.id + ' cols=' + (myTable.cols ? myTable.cols[0].length : '?') + ' data=' + (table_cache[myTable.id] ? (table_cache[myTable.id].length || '0') : '?')); } catch(e){}
       var _this = this,
         $table = $(myTable.elem),
         $tableMain = $table.next().children('.layui-table-box').children('.layui-table-main'),
@@ -568,7 +567,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
               }
             }
             // 查询条件
-            var selectStr = "<select lay-filter='conditionChange'>";
+            var selectStr = "<select lay-filter='conditionChange" + tableId + "'>";
             for (var key in conditionChangeItems) {
               selectStr += '<option value="' + key + '">' + conditionChangeItems[key] + '</option>';
             }
@@ -587,11 +586,11 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
                   conditionHtml.push(
                     '<td>' +
                     '   <div>' +
-                    '      <input type="checkbox" name="switch" lay-filter="soul-coondition-switch" lay-skin="switch" lay-text="与|或" ' + (!prefix || prefix === 'and' ? 'checked' : '') + '>' +
+                    '      <input type="checkbox" name="switch" lay-filter="soul-coondition-switch' + tableId + '" lay-skin="switch" lay-text="与|或" ' + (!prefix || prefix === 'and' ? 'checked' : '') + '>' +
                     '    </div>' +
                     '</td>')
                 }
-                conditionHtml.push('<td style="width: 110px;"><div class="layui-block" ><select lay-filter="conditionChange">');
+                conditionHtml.push('<td style="width: 110px;"><div class="layui-block" ><select lay-filter="conditionChange' + tableId + '">');
                 for (var key in conditionChangeItems) {
                   conditionHtml.push('<option value="' + key + '" ' + (key === type ? 'selected' : '') + '>' + conditionChangeItems[key] + '</option>');
                 }
@@ -711,7 +710,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
             function updateTrWhere($tr) {
               var id = $tr.data('id'),
                 groupId = $('#soul-condition' + tableId).data('id'),
-                prefix = $tr.find('input[lay-filter="soul-coondition-switch"]:checked').prop('checked') ? 'and' : 'or',
+                prefix = $tr.find('input[lay-filter="soul-coondition-switch' + tableId + '"]:checked').prop('checked') ? 'and' : 'or',
                 type = $tr.find('select').val(),
                 value = $tr.find('.value').val(),
                 head = $('#soul-condition' + tableId).data('head');
@@ -753,7 +752,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
             }
 
             // select同步筛选条件
-            form.on('select(conditionChange)', function (data) {
+            form.on('select(conditionChange' + tableId + ')', function (data) {
               if (data.value === 'null' || data.value === 'notNull') {
                 $(this).parents('tr').find('input.value').hide();
               } else {
@@ -763,7 +762,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
             })
 
             // radio同步筛选条件
-            form.on('switch(soul-coondition-switch)', function (data) {
+            form.on('switch(soul-coondition-switch' + tableId + ')', function (data) {
               updateTrWhere($(this).parents('tr:eq(0)'));
             });
 
@@ -1016,7 +1015,6 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       }
 
       this.bindFilterClick(myTable);
-      try { console.timeEnd('[filter] render ' + myTable.id); } catch(e){}
     },
     showConditionBoard: function (myTable) {
       var _this = this,
@@ -1042,7 +1040,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       }
       filterBoard.push('<div class="soul-edit-out">')
       filterBoard.push('<div class="layui-form" lay-filter="soul-edit-out">')
-      filterBoard.push('<div><a class="layui-btn layui-btn-sm" data-type="addOne"><i class="layui-icon layui-icon-add-1"></i> 添加条件</a><a class="layui-btn layui-btn-sm" data-type="addGroup"><i class="layui-icon layui-icon-add-circle" ></i> 添加分组</a><a class="layui-btn layui-btn-sm" data-type="search" style="float: right"><i class="layui-icon layui-icon-search"></i> 查询</a><span style="float: right"><input type="checkbox" lay-filter="out_auto" class="out_auto" title="实时更新"></span></div>')
+      filterBoard.push('<div><a class="layui-btn layui-btn-sm" data-type="addOne"><i class="layui-icon layui-icon-add-1"></i> 添加条件</a><a class="layui-btn layui-btn-sm" data-type="addGroup"><i class="layui-icon layui-icon-add-circle" ></i> 添加分组</a><a class="layui-btn layui-btn-sm" data-type="search" style="float: right"><i class="layui-icon layui-icon-search"></i> 查询</a><span style="float: right"><input type="checkbox" lay-filter="out_auto' + tableId + '" class="out_auto" title="实时更新"></span></div>')
       filterBoard.push('<hr>')
       filterBoard.push('<ul>')
       for (i = 0; i < filterSos.length; i++) {
@@ -1060,7 +1058,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       })
       form.render(null, 'soul-edit-out');
 
-      form.on('checkbox(out_auto)', function (data) {
+      form.on('checkbox(out_auto' + tableId + ')', function (data) {
         if (data.elem.checked) {
           _this.soulReload(myTable);
         }
@@ -1075,7 +1073,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
         filterBoard.push('<li data-id="' + id + '" data-field="' + field + '" ' + (isLast ? 'class="last"' : '') + ' data-mode="' + mode + '" data-type="' + type + '" data-value="' + (typeof filterSo.value === 'undefined' ? '' : filterSo.value) + '" >');
         filterBoard.push('<div><table><tbody><tr><td data-type="top"></td></tr><tr><td data-type="bottom"></td></tr></tbody></table></div>')
         // if (!isFirst) { //第一个隐藏 与或
-        filterBoard.push('<div><input type="checkbox" name="switch" lay-filter="soul-edit-switch" lay-skin="switch" lay-text="与|或" ' + (isOr ? '' : 'checked') + '></div>')
+        filterBoard.push('<div><input type="checkbox" name="switch" lay-filter="soul-edit-switch' + tableId + '" lay-skin="switch" lay-text="与|或" ' + (isOr ? '' : 'checked') + '></div>')
         // }
         switch (mode) {
           case 'in':
@@ -1115,7 +1113,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       }
 
       // prefix
-      form.on('switch(soul-edit-switch)', function (data) {
+      form.on('switch(soul-edit-switch' + tableId + ')', function (data) {
         changePrefix(data)
       })
 
@@ -1365,7 +1363,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
 
             filterBoard.push('<li data-id="' + filterSo.id + '" data-field="' + filterSo.field + '" data-mode="' + filterSo.mode + '" data-type="' + filterSo.type + '" data-value="' + filterSo.value + '" data-prefix="' + filterSo.prefix + '" class="last">');
             filterBoard.push('<div><table><tbody><tr><td data-type="top"></td></tr><tr><td data-type="bottom"></td></tr></tbody></table></div>');
-            filterBoard.push('<div><input type="checkbox" name="switch" lay-filter="soul-edit-switch" lay-skin="switch" lay-text="与|或" checked></div>')
+            filterBoard.push('<div><input type="checkbox" name="switch" lay-filter="soul-edit-switch' + tableId + '" lay-skin="switch" lay-text="与|或" checked></div>')
             filterBoard.push('<div class="layui-firebrick item-field">' + fieldMap[filterSo.field].title + '</div>');
             filterBoard.push('<div class="layui-deeppink item-type">等于</div>');
             filterBoard.push('<div class="layui-blueviolet item-value">请输入...</div>');
@@ -1387,7 +1385,7 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
 
             filterBoard.push('<li data-id="' + filterSo.id + '" class="last">');
             filterBoard.push('<div><table><tbody><tr><td data-type="top"></td></tr><tr><td data-type="bottom"></td></tr></tbody></table></div>');
-            filterBoard.push('<div><input type="checkbox" name="switch" lay-filter="soul-edit-switch" lay-skin="switch" lay-text="与|或" checked></div>')
+            filterBoard.push('<div><input type="checkbox" name="switch" lay-filter="soul-edit-switch' + tableId + '" lay-skin="switch" lay-text="与|或" checked></div>')
             filterBoard.push('<div class="layui-firebrick">分组</div>')
             filterBoard.push('<div><a class="layui-btn layui-btn-xs" data-type="addOne"><i class="layui-icon layui-icon-add-1"></i> 添加条件</a><a class="layui-btn layui-btn-xs" data-type="addGroup"><i class="layui-icon layui-icon-add-circle"></i> 添加分组</a></div>')
             filterBoard.push('<div class="layui-red delete-item"><i class="layui-icon layui-icon-close-fill"></i></div>');
@@ -1695,7 +1693,6 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       }
       dropListReloadLock[myTable.id] = true;
       setTimeout(function () { dropListReloadLock[myTable.id] = false; }, 0);
-      try { console.time("[filter] updateDropList "+field); console.log("[filter] updateDropList START field="+field+" rows="+(cache[myTable.id]?cache[myTable.id].length:"?")); } catch(e){}
       var _this = this,
         $table = $(myTable.elem),
         tableId = myTable.id,
@@ -1732,7 +1729,6 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
       if (refresh) {
         _this.soulReload(myTable);
       }
-      try { console.timeEnd("[filter] updateDropList "+field); } catch(e){}
     }
     , getFilterSoById: function (filterSos, id) {
       for (var i = 0; i < filterSos.length; i++) {
@@ -1811,7 +1807,6 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
      * @param isr 是否为筛选重载，为 true 时，不进行筛选的初始化动作（包括渲染dom、请求表头数据等）
      */
     , soulReload: function (myTable, isr) {
-      try { console.time("[filter] soulReload"); console.log("[filter] soulReload START"); } catch(e){}
       var _this = this,
         $table = $(myTable.elem),
         scrollLeft = $table.next().children('.layui-table-box').children('.layui-table-main').scrollLeft();
@@ -1871,7 +1866,9 @@ layui.define(['table', 'form', 'laydate', 'util', 'excel', 'laytpl'], function (
               , isSoulFrontFilter: true
               , data: newData
             })
-            inst.config.url = url;
+            if (inst) {
+              inst.config.url = url;
+            }
           }
           myTable.data = newData
 
